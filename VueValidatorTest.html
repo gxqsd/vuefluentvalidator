@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <script type="text/javascript" src="vue.js"></script>
+    <script src="vuefluentvalidator.js"></script>
+</head>
+
+<body>
+    <div id="box">
+        <form action="https://www.baidu.com">
+            <div>
+                <input type="text" v-model="model.name">
+                <span>{{model.error.name}}</span>
+            </div>
+            <div>
+                <input type="text" v-model="model.age">
+                <span>{{model.error.age}}</span>
+            </div>
+            <div>
+                <input type="checkbox" v-model="model.sex">
+                <span>{{model.error.sex}}</span>
+            </div>
+            <input type="submit" value="提交" @click="submit({ev:$event})">
+        </form>
+    </div>
+    <script>
+        let vm = new Vue({
+            el: '#box',
+            data: {
+                validator: new Validator({
+                    model: { name: undefined, age: undefined, sex: undefined },
+                    rule: function (than) {
+                        than.ruleFor("name")
+                            .NotEmpty()
+                            .WithMessage("名称必填")
+                            .MinimumLength(5)
+                            .WithMessage("最短长度为5");
+
+                        than.ruleFor("age")
+                            .NotEmpty()
+                            .WithMessage("年龄必须")
+                            .Number(0, 100)
+                            .WithMessage("必须在0-100岁之间");
+                    }
+                }),
+            },
+            methods: {
+                submit: function ({ ev }) {
+
+                    if (this.validator.passValidation()) {
+                        return;
+                    }
+
+                    ev.preventDefault();
+
+                    this.validator.validation(ev.target);
+                }
+            },
+            computed: {
+                model: {
+                    get: function () {
+                        return this.validator.model;
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>
