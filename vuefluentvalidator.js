@@ -14,20 +14,42 @@ class Validator {
 
         this.model.error = {
             code: '',
-            clearValue: function () {
-                for (const key in this) {
-                    if (this.hasOwnProperty(key) && key !== 'clearValue' && key !== 'exist') {
-                        this[key] = '';
+            clearError: function () {
+                this.clearValue(this);
+            },
+            clearValue: function (model) {
+                for (const key in model) {
+                    if (model.hasOwnProperty(key)) {
+                        let value = model[key];
+                        if (value.constructor !== Function) {
+                            if (value && value.constructor === Object) { // 复杂对象
+                                this.clearValue(model[key]);
+                            } else {
+                                model[key] = '';
+                            }
+                        }
                     }
                 }
             },
-            exist: function () {
+            existError: function () {
+                return this.exist(this);
+            },
+            exist: function (model) {
                 let exist = false;
-                for (const key in this) {
-                    if (this.hasOwnProperty(key) && key !== 'clearValue' && key !== 'exist') {
-                        if (this[key] !== '') {
-                            exist = true;
-                            break;
+                for (const key in model) {
+                    if (model.hasOwnProperty(key)) {
+                        let value = model[key];
+                        if (value.constructor !== Function) {
+                            if (value.constructor === Object) { //  如果他是object类型，遍历它的key
+                                if (this.exist(model[key])) {
+                                    exist = true;
+                                    break;
+                                }
+                            }
+                            else if (value !== '') {
+                                exist = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -35,14 +57,26 @@ class Validator {
             }
         };
 
-        for (const key in this.model) {
-            if (this.model.hasOwnProperty(key) && key !== 'error') {
-                this.model.error[key] = '';
+        this.modelErrorInitial(this.model.error, this.model);
+
+    }
+
+    modelErrorInitial(errorList, model) {
+        for (const key in model) {
+            if (model.hasOwnProperty(key) && key !== 'error') {
+                let value = model[key];
+                if (value && value.constructor === Object) {
+                    errorList[key] = {};
+                    this.modelErrorInitial(errorList[key], value);
+                } else {
+                    if (errorList) {
+                        errorList[key] = '';
+                    } else {
+                        model[key] = '';
+                    }
+                }
             }
         }
-
-
-
     }
 
     ruleFor(field) {   //此处表达式返回一个指定字段哈
@@ -52,28 +86,49 @@ class Validator {
     }
 
     validation(targetElement) {
-        this.model.error.clearValue();
+        this.model.error.clearError();
+
         for (const [field, initial] of this.fieldValidationSet) {
 
-            const property = this.model[field];
+            let fieldArr = field.split(".");
+
+            let property = this.model;
+
+            let fieldError = this.model.error;
+
+            let fieldName = '';
+            for (let i = 0; i < fieldArr.length; i++) {
+
+                let element = fieldArr[i];
+
+                property = property[element];
+
+                if (i < fieldArr.length - 1) {
+                    fieldError = fieldError[element];
+                }
+                if (i == fieldArr.length - 1) {
+                    fieldName = element;
+                }
+            }
+
             for (const [config, options] of initial.validationSet) {
                 switch (config) {
                     case "NotEmpty":
                         if (!property) {
-                            this.model.error[field] = initial.validationSet.get("NotEmpty").errorMessage;
+                            fieldError[fieldName] = initial.validationSet.get("NotEmpty").errorMessage;
                         }
                         break;
                     case "MinimumLength":
                         if (property && initial.minimumLength) {
                             if (property.length < initial.minimumLength) {
-                                this.model.error[field] = initial.validationSet.get("MinimumLength").errorMessage;
+                                fieldError[fieldName] = initial.validationSet.get("MinimumLength").errorMessage;
                             }
                         }
                         break;
                     case "MaximumLength":
                         if (property && initial.maximumLength) {
                             if (property.length > initial.minimumLength) {
-                                this.model.error[field] = initial.validationSet.get("MaximumLength").errorMessage;
+                                fieldError[fieldName] = initial.validationSet.get("MaximumLength").errorMessage;
                             }
                         }
                         break;
@@ -81,34 +136,32 @@ class Validator {
                     case "Length":
                         if (property && initial.length) {
                             if (property.length > initial.length["max"] || property.length < initial.length["min"]) {
-                                this.model.error[field] = initial.validationSet.get("Length").errorMessage;
+                                fieldError[fieldName] = initial.validationSet.get("Length").errorMessage;
                             }
                         }
                         break;
                     case "Must":
                         if (property && initial.must && this.model) {
                             if (initial.must(this.model)) {
-                                console.log(field);
-                                this.model.error[field] = initial.validationSet.get("Must").errorMessage;
+                                console.log(fieldName);
+                                fieldError[fieldName] = initial.validationSet.get("Must").errorMessage;
                             }
                         }
                         break;
                     case "Number":
-
                         let propertyNum = Number(property);
-
                         if (property && !isNaN(propertyNum) && initial.number) {
                             if (propertyNum > initial.number.max || propertyNum < initial.number.min) {
-                                this.model.error[field] = initial.validationSet.get("Number").errorMessage;
+                                fieldError[fieldName] = initial.validationSet.get("Number").errorMessage;
                             }
                         } else {
-                            this.model.error[field] = "必须是Number类型";
+                            fieldError[fieldName] = "必须是Number类型";
                         }
                         break;
                 }
             }
         }
-        if (!this.model.error.exist()) {    //没有错误
+        if (!this.model.error.existError()) {    //没有错误
             this.model.error.code = -2; //通过验证
             targetElement.click();  //  重新触发submit
         }
